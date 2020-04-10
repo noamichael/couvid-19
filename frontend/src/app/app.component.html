@@ -1,0 +1,48 @@
+<div class="game">
+  <mat-card class="player" *ngFor="let player of players">
+    <mat-card-title>{{player.name}}</mat-card-title>
+    <div class="coins">
+      <div class="coin">
+        <mat-icon *ngFor="let coin of player.coinsArray">attach_money</mat-icon>
+      </div>
+    </div>
+    <div class="cards">
+      <mat-card class="card" *ngFor="let card of player.cards">
+        <mat-card-title>
+          {{card.label ? card.label : '???'}}
+        </mat-card-title>
+        <ng-container [ngSwitch]="card.state">
+          <ng-container *ngSwitchCase="'dead'">
+            <mat-icon>block</mat-icon>
+          </ng-container>
+          <ng-container *ngSwitchCase="'alive'">
+            <mat-icon>person</mat-icon>
+          </ng-container>
+        </ng-container>
+      </mat-card>
+    </div>
+  </mat-card>
+</div>
+  <hr>
+  <mat-card class="player">
+    <mat-card-title>Me ({{currentPlayer.name}})</mat-card-title>
+    <div class="coins">
+      <div class="coin">
+        <mat-icon *ngFor="let coin of currentPlayer.coinsArray">attach_money</mat-icon>
+      </div>
+    </div>
+    <div class="cards">
+      <mat-card class="card" *ngFor="let card of currentPlayer.cards">
+        <ng-container [ngSwitch]="card.state">
+          <ng-container *ngSwitchCase="'dead'">
+            {{card.type}}
+            Dead card
+          </ng-container>
+          <ng-container *ngSwitchCase="'alive'">
+            {{card.type}}
+            <mat-icon>person</mat-icon>
+          </ng-container>
+        </ng-container>
+      </mat-card>
+    </div>
+  </mat-card>

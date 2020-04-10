@@ -1,0 +1,15 @@
+.game, .cards {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+.card {
+    display: flex;
+    align-items: center;
+}
+
+.player {
+    flex-grow: 1;
+    margin: 1em;
+}
