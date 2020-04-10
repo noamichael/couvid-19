@@ -75,6 +75,33 @@ func (game *Game) AddPlayer(name string, clientID string) {
 	game.Players = append(game.Players, player)
 }
 
+//ResolveAmbassador allows the player to swap cards
+func (game *Game) ResolveAmbassador(clientID string, cardToKeep, cardToReturn CardType) error {
+	turn := game.CurrentTurn
+
+	//Validate we can
+	err := game.validateForTurn(clientID, ActionAmbassador, TurnAwaitingTarget)
+
+	if err != nil {
+		return err
+	}
+
+	if cardToKeep != "" && cardToKeep != cardToReturn {
+		card := turn.Player.removeCard(cardToReturn)
+		if game.Deck[0].CardType == cardToKeep {
+			turn.Player.Cards = append(turn.Player.Cards, game.Deck[0])
+			game.Deck = game.Deck[1:]
+		} else if game.Deck[1].CardType == cardToKeep {
+			turn.Player.Cards = append(turn.Player.Cards, game.Deck[1])
+			game.Deck = append(game.Deck[2:], game.Deck[0])
+		}
+		game.returnToDeck(card)
+	}
+
+	return game.resolveTurn()
+
+}
+
 //ResolveFailedCall allows a caller of a turn to say which card they lose
 func (game *Game) ResolveFailedCall(clientID string, cardTypeToLose CardType) error {
 	turn := game.CurrentTurn
@@ -166,15 +193,23 @@ func (game *Game) resolveTurn() error {
 
 	switch turn.Action {
 	case ActionAmbassador:
-		turn.State = TurnAwaitingTarget
-		player.TradedCards = game.peakTwo()
+		if turn.State == TurnSubmitted {
+			turn.State = TurnAwaitingTarget
+			player.TradedCards = game.peakTwo()
+		} else if turn.State == TurnAwaitingTarget {
+			turn.State = TurnComplete
+		}
 		break
 	case ActionAssassinate:
-		if player.Coins < 3 {
-			return errors.New("Not enough coins to Assassinate")
+		if turn.State == TurnSubmitted {
+			if player.Coins < 3 {
+				return errors.New("Not enough coins to Assassinate")
+			}
+			turn.State = TurnAwaitingTarget
+			turn.Player.Coins -= 3
+		} else if turn.State == TurnAwaitingTarget {
+			turn.State = TurnComplete
 		}
-		turn.State = TurnAwaitingTarget
-		turn.Player.Coins -= 3
 		break
 	case ActionCoup:
 		if player.Coins < 7 {
@@ -185,24 +220,32 @@ func (game *Game) resolveTurn() error {
 		fmt.Printf("\n%s Couped %s", playerName, turn.TargetPlayer.Name)
 	case ActionForeignAid:
 		turn.Player.Coins += 2
+		turn.State = TurnComplete
 		fmt.Printf("\n%s took three", playerName)
 		break
 	case ActionDuke:
 		turn.Player.Coins += 3
+		turn.State = TurnComplete
 		fmt.Printf("\n%s took three", playerName)
 		break
 	case ActionTakeOne:
 		turn.Player.Coins++
+		turn.State = TurnComplete
 		fmt.Printf("\n%s took one", playerName)
 		break
 	case ActionSteal:
 		turn.Player.Coins += 2
 		turn.TargetPlayer.Coins -= 2
+		turn.State = TurnComplete
 		fmt.Printf("\n%s Took 2 from %s", playerName, turn.TargetPlayer.Name)
 		break
 	}
 
-	game.nextTurn()
+	if turn.State == TurnComplete {
+		turn.Player.TradedCards = nil
+		//TODO: Cleanup all player statesx
+		game.nextTurn()
+	}
 
 	return nil
 
@@ -258,9 +301,7 @@ func (game *Game) CallTurn(callerClientID string) error {
 	if card := turn.Player.getCardForAction(turn.Action); card != nil {
 		turn.State = TurnCallFailed
 		turn.Player.removeCard(card.CardType)
-		game.Deck = append(game.Deck, card)
-		game.shuffleDeck()
-		game.dealCard(turn.Player)
+		game.returnToDeck(card)
 		game.resolveTurn()
 
 	} else {
@@ -292,6 +333,7 @@ func (game *Game) StartGame() {
 
 func (game *Game) shuffleDeck() {
 	deck := game.Deck
+	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(deck), func(i, j int) {
 		deck[i], deck[j] = deck[j], deck[i]
 	})
@@ -327,10 +369,37 @@ func (game *Game) nextTurn() {
 
 }
 
+func (game *Game) validateForTurn(clientID string, action ActionType, expectedState TurnState) error {
+	if clientID == "" {
+		return errors.New("Missing clientID")
+	}
+
+	if clientID != game.CurrentTurn.Player.ClientID {
+		return errors.New("Current player does not match for turn")
+	}
+
+	if action != game.CurrentTurn.Action {
+		return errors.New("Action does not match current turn")
+	}
+
+	if expectedState != game.CurrentTurn.State {
+		return errors.New("State does not match current turn")
+	}
+
+	return nil
+}
+
 func (game *Game) dealCard(player *Player) {
 	card := game.Deck[0] //draw first element
+	card.CardState = ALIVE
 	player.Cards = append(player.Cards, card)
 	game.Deck = game.Deck[1:] //remove first element
+}
+
+func (game *Game) returnToDeck(card *Card) {
+	card.CardState = ALIVE
+	game.Deck = append(game.Deck, card)
+	game.shuffleDeck()
 }
 
 func (game *Game) peakTwo() []CardType {
@@ -338,7 +407,7 @@ func (game *Game) peakTwo() []CardType {
 	deck := game.Deck
 	numberOfCards := len(deck)
 
-	if numberOfCards == 1 {
+	if numberOfCards > 0 {
 		cardTypes = append(cardTypes, deck[0].CardType)
 	}
 	if numberOfCards > 1 {

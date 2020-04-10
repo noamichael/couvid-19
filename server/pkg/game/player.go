@@ -55,7 +55,7 @@ func (player *Player) removeCard(cardType CardType) *Card {
 	newCards := make([]*Card, 0, 2)
 	var removedCard *Card
 	for _, card := range player.Cards {
-		if card.CardState == ALIVE && card.CardType == cardType {
+		if removedCard == nil && card.CardState == ALIVE && card.CardType == cardType {
 			removedCard = card
 		} else {
 			newCards = append(newCards, card)

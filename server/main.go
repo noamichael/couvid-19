@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/noamichael/couvid-19/server/pkg/game"
 )
@@ -26,7 +27,14 @@ func main() {
 
 	coup.StartGame()
 
-	coup.Turn(michael, game.ActionDuke, "")
+	coup.Turn(michael, game.ActionAmbassador, "")
+	time.Sleep(11 * time.Second)
+	cardToKeep := coup.CurrentTurn.Player.TradedCards[0]
+	coup.ResolveAmbassador(michael, cardToKeep, coup.CurrentTurn.Player.Cards[0].CardType)
+
+	coup.Turn(john, game.ActionTakeOne, "")
+	coup.Turn(alex, game.ActionDuke, "")
+	coup.CallTurn(john)
 
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Hit Enter to Exit")
